@@ -31,7 +31,7 @@ dependencies = [
 # Installs the private analytics-service-toolkit. Requires credentials for that
 # repo, which is why it is not in the core dependency list.
 astk = [
-    "analytics-service-toolkit @ git+https://github.com/nassim0014/analytics-service-toolkit",
+    "analytics-service-toolkit @ git+https://github.com/Kinz-org/analytics-service-toolkit",
 ]
 parquet = ["pyarrow>=15.0"]
 dev = [

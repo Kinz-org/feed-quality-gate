@@ -1,6 +1,6 @@
 # feed-quality-gate (`fqg`)
 
-[![CI](https://github.com/nassim0014/feed-quality-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/nassim0014/feed-quality-gate/actions/workflows/ci.yml)
+[![CI](https://github.com/Kinz-org/feed-quality-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/Kinz-org/feed-quality-gate/actions/workflows/ci.yml)
 
 A declarative quality-and-freshness gate for tabular product/price feeds. Point
 it at a feed and a rules file; it profiles the feed, scores it, splits the safe
