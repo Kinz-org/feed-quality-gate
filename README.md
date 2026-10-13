@@ -165,15 +165,15 @@ backlog items that need config loading, a DB source adapter or alerting are
 written against it.
 
 It is deliberately an **optional** extra (`pip install ".[astk]"`) rather than a
-core dependency, for one practical reason: `astk` is a private repository, so a
-hard dependency would mean CI could not install this package without
-credentials. Core stays installable by anyone; the integration seam is opt-in.
+core dependency. `astk` is public but not on PyPI: the extra installs it straight
+from git, and brings SQLAlchemy and httpx with it. Core stays small and
+installable from PyPI alone; the integration seam is opt-in.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest          # 56 tests
+pytest
 ruff check .
 ```
 
@@ -182,7 +182,7 @@ Tests use synthetic fixtures exclusively and make no network calls.
 CI runs `ruff` and `pytest` on Python 3.11 and 3.12, then smoke-tests the CLI
 against the intentionally-broken example feed and fails if the gate passes it -
 see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The `[astk]` extra is
-deliberately not installed in CI (private repo, no credentials).
+not installed in CI, which tests core only.
 
 ## Licence
 
