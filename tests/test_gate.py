@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC
 
 from feed_quality_gate.gate import evaluate, gate
 from feed_quality_gate.models import CheckResult, FeedReport, Severity
@@ -12,6 +13,16 @@ from feed_quality_gate.rules import Rules
 
 
 class TestEvaluate:
+    def test_naive_now_is_accepted_and_reported_as_utc(self, clean_feed, rules, now):
+        """Regression: evaluate(now=<naive>) crashed in the freshness check, and
+        to_dict() would have read the naive value as machine-local time."""
+        naive = now.astimezone(UTC).replace(tzinfo=None)
+        report = evaluate(clean_feed, rules, now=naive)
+        assert report.gate_passed
+        assert report.evaluated_at == now
+        assert report.evaluated_at.tzinfo is not None
+        assert report.to_dict()["evaluated_at"] == now.astimezone(UTC).isoformat()
+
     def test_clean_feed_scores_full_marks(self, clean_feed, rules, now):
         report = evaluate(clean_feed, rules, now=now)
         assert report.gate_passed

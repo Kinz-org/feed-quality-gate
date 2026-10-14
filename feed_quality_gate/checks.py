@@ -54,6 +54,23 @@ def _is_blank(series: pd.Series) -> pd.Series:
     return blank
 
 
+def as_utc(now: datetime | None) -> datetime:
+    """Return ``now`` as a timezone-aware UTC datetime (current time if None).
+
+    A naive ``now`` is taken to be UTC - the same assumption
+    ``pd.to_datetime(..., utc=True)`` makes for the feed's own naive
+    timestamps - so the two sides of the age subtraction agree. Without this a
+    naive value crashed with a bare pandas ``TypeError`` ("Cannot convert
+    tz-naive Timestamp"), and ``datetime.astimezone`` would silently read it
+    as the machine's local time when the report is serialised.
+    """
+    if now is None:
+        return datetime.now(UTC)
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        return now.replace(tzinfo=UTC)
+    return now.astimezone(UTC)
+
+
 def check_freshness(
     df: pd.DataFrame,
     rule: FreshnessRule,
@@ -64,8 +81,10 @@ def check_freshness(
 
     This is the check that would have caught a feed sitting 33 days stale while
     dashboards kept rendering week-over-week deltas against it.
+
+    ``now`` defaults to the current time; a naive value is treated as UTC.
     """
-    now = now or datetime.now(UTC)
+    now = as_utc(now)
 
     if not timestamp_column:
         return CheckResult(
@@ -115,7 +134,7 @@ def check_freshness(
         )
 
     newest = ts.max()
-    age_days = (pd.Timestamp(now).tz_convert("UTC") - newest).total_seconds() / 86400
+    age_days = (pd.Timestamp(now) - newest).total_seconds() / 86400
     passed = age_days <= rule.max_age_days
 
     return CheckResult(

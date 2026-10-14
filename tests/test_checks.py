@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -57,6 +57,27 @@ class TestFreshness:
         r = check_freshness(clean_feed.iloc[0:0], rules.freshness, "scraped_at", now=now)
         assert not r.passed
         assert "empty" in r.message
+
+    def test_naive_now_is_treated_as_utc_not_a_crash(self, clean_feed, rules, now):
+        """Regression: a tz-naive ``now`` raised a bare pandas TypeError."""
+        naive = now.astimezone(UTC).replace(tzinfo=None)
+        aware = check_freshness(clean_feed, rules.freshness, "scraped_at", now=now)
+        r = check_freshness(clean_feed, rules.freshness, "scraped_at", now=naive)
+        assert r.passed
+        assert r.details["age_days"] == aware.details["age_days"]
+
+    def test_naive_now_still_detects_a_stale_feed(self, stale_feed, rules, now):
+        naive = now.astimezone(UTC).replace(tzinfo=None)
+        r = check_freshness(stale_feed, rules.freshness, "scraped_at", now=naive)
+        assert not r.passed
+        assert round(r.details["age_days"]) == 33
+
+    def test_non_utc_aware_now_is_converted(self, clean_feed, rules, now):
+        """An aware ``now`` in another zone is the same instant, same age."""
+        shifted = now.astimezone(timezone(timedelta(hours=1)))
+        aware = check_freshness(clean_feed, rules.freshness, "scraped_at", now=now)
+        r = check_freshness(clean_feed, rules.freshness, "scraped_at", now=shifted)
+        assert r.details["age_days"] == aware.details["age_days"]
 
     def test_unparseable_timestamps_fail(self, clean_feed, rules, now):
         df = clean_feed.copy()

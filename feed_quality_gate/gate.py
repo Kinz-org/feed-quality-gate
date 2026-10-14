@@ -11,11 +11,12 @@ the same call works from a CLI, an Airflow task, or a test.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pandas as pd
 
 from .checks import (
+    as_utc,
     check_completeness,
     check_freshness,
     check_per_source_completeness,
@@ -30,8 +31,11 @@ def evaluate(
     rules: Rules,
     now: datetime | None = None,
 ) -> FeedReport:
-    """Run every enabled check and aggregate the results into a report."""
-    now = now or datetime.now(UTC)
+    """Run every enabled check and aggregate the results into a report.
+
+    ``now`` defaults to the current time; a naive value is treated as UTC.
+    """
+    now = as_utc(now)
     results: list[CheckResult] = []
 
     if rules.freshness.enabled:
