@@ -22,8 +22,16 @@ the same PR that fixes it.
   was confirmed to fail against the pre-fix code (`git stash` the fix and
   re-run) before being restored.
 
-- [ ] **`check_freshness`/`evaluate(..., now=...)` crashes with a raw
-  `TypeError` on a timezone-naive `now`.** `now` is typed `datetime | None`
+- [x] **`check_freshness`/`evaluate(..., now=...)` crashes with a raw
+  `TypeError` on a timezone-naive `now`.** (done 2026-10-14) Fixed with
+  `checks.py::as_utc()`, used by both `check_freshness` and `evaluate()`: a
+  naive `now` is treated as UTC (the same assumption `pd.to_datetime(...,
+  utc=True)` already makes for the feed's naive timestamps), an aware one is
+  converted to UTC. `evaluate()` normalising too also stops
+  `FeedReport.to_dict()` reading a naive `evaluated_at` as machine-local time.
+  Regression tests in `tests/test_checks.py::TestFreshness` and
+  `tests/test_gate.py::TestEvaluate` fail (3 of 4) against the pre-fix code.
+  Original finding: `now` is typed `datetime | None`
   with nothing in the signature or docstring saying it must be tz-aware, but
   `checks.py::check_freshness` does `pd.Timestamp(now).tz_convert("UTC")`,
   which raises `TypeError: Cannot convert tz-naive Timestamp, use
