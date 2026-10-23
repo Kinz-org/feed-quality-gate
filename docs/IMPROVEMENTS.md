@@ -67,6 +67,8 @@ the same PR that fixes it.
   solves by scoping the extra to one job/step.) Verify: add CLI tests that
   round-trip a feed through `.json` and (marked to skip without `pyarrow`)
   `.parquet`.
+  *Partly done 2026-10-23:* `.json`, `.jsonl` and the unsupported-extension
+  error are now covered (`TestReadFeedFormats`); `.parquet` is still open.
 
 - [ ] **`gate()`'s row split quarantines every row sharing a duplicated
   `id_column` value, not just the offending one.** `gate()` selects bad rows

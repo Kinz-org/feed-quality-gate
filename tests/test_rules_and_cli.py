@@ -85,6 +85,29 @@ completeness:
 """
 
 
+class TestReadFeedFormats:
+    """`_read_feed` picks its reader by extension; each branch must round-trip."""
+
+    @pytest.mark.parametrize("suffix, lines", [(".json", False), (".jsonl", True)])
+    def test_json_feeds_are_read(self, tmp_path, suffix, lines):
+        import pandas as pd
+
+        feed = tmp_path / f"feed{suffix}"
+        pd.DataFrame(FRESH_ROWS).to_json(feed, orient="records", lines=lines)
+        rules = _write_rules(tmp_path, RULES_BODY)
+        res = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert res.exit_code == 0, res.output
+        assert "PASSED" in res.output
+
+    def test_unsupported_extension_is_rejected(self, tmp_path):
+        feed = tmp_path / "feed.xlsx"
+        feed.write_text("irrelevant", encoding="utf-8")
+        rules = _write_rules(tmp_path, RULES_BODY)
+        res = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert res.exit_code != 0
+        assert "unsupported feed format" in res.output
+
+
 class TestCli:
     def test_passing_feed_exits_zero(self, tmp_path):
         feed = _write_feed(tmp_path, FRESH_ROWS)
