@@ -70,8 +70,17 @@ the same PR that fixes it.
   *Partly done 2026-10-23:* `.json`, `.jsonl` and the unsupported-extension
   error are now covered (`TestReadFeedFormats`); `.parquet` is still open.
 
-- [ ] **`gate()`'s row split quarantines every row sharing a duplicated
-  `id_column` value, not just the offending one.** `gate()` selects bad rows
+- [x] **`gate()`'s row split quarantines every row sharing a duplicated
+  `id_column` value, not just the offending one.** (done 2026-10-26) Fixed
+  with `checks.py::quarantine_mask()`, a row-aligned boolean mask that both
+  `quarantine_ids_for()` and `gate()` now use, so the split no longer matches
+  quarantined *ids* back against the frame. The same fix covers the
+  no-`id_column` fallback, which had the identical defect on a non-unique
+  index. Regression tests `test_duplicated_id_keeps_the_good_row_clean` and
+  `test_duplicated_index_without_id_column_keeps_the_good_row_clean` in
+  `tests/test_gate.py::TestGateSplit` both fail against the pre-fix code.
+  `report.quarantined_ids` is unchanged (still the ids of the bad rows).
+  Original finding: `gate()` selects bad rows
   with `df[id_col].isin(report.quarantined_ids)` (`feed_quality_gate/gate.py`).
   Reproduced: a feed with two rows both `product_id="P1"`, one with a null
   price (correctly quarantined) and one fully valid, puts *both* rows in
@@ -83,3 +92,26 @@ the same PR that fixes it.
   a fixture with a duplicated id where only one of the two rows is bad should
   keep the good one in `clean`, e.g. by splitting on index positions matched
   to quarantined index values rather than quarantined id values.
+
+- [ ] **`check_freshness` passes a stale feed when any one timestamp is in
+  the future.** It takes `ts.max()` and computes `age_days = now - newest`
+  with no lower bound (`feed_quality_gate/checks.py::check_freshness`), so a
+  single mis-parsed or clock-skewed row (e.g. `2099-01-01`, or a day/month
+  swap landing next year) makes the newest row "-26419.0d old" and the check
+  passes, however stale every other row is. That is exactly the silent-stale
+  failure the check exists to catch, hidden by one bad value. Reproduced
+  2026-10-26: nine rows at `2026-07-01` plus one at `2099-01-01`, `now =
+  2026-09-02`, returns `passed=True`. Fix idea: ignore (and count/report)
+  timestamps beyond `now` plus a small skew allowance, or fail with a
+  message naming them. Verify: that fixture should fail freshness.
+
+- [ ] **Unknown keys in a rules file are silently ignored.** None of the
+  pydantic models in `feed_quality_gate/rules.py` set
+  `model_config = ConfigDict(extra="forbid")`, so a typo is dropped and the
+  default applies: `freshnes: {max_age_days: 1}` leaves the 7-day default
+  in force, and `price: {quarantine_rows: false}` still quarantines.
+  Reproduced 2026-10-26 via `Rules.from_mapping`. A config mistake should be
+  exit code 2 with a readable `RulesError` (the README's own contract), not a
+  gate that quietly runs with different tolerances than the file says.
+  Verify: `load_rules` on a file with a misspelt key raises `RulesError`
+  naming it; `rules.example.yaml` still loads.

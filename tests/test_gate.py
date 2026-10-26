@@ -6,6 +6,8 @@ import json
 import re
 from datetime import UTC
 
+import pandas as pd
+
 from feed_quality_gate.gate import evaluate, gate
 from feed_quality_gate.models import CheckResult, FeedReport, Severity
 from feed_quality_gate.report import exit_code, to_console, to_html, to_json, to_markdown
@@ -143,6 +145,38 @@ class TestGateSplit:
         before = holey_feed.copy()
         gate(holey_feed, rules, now=now)
         assert holey_feed.equals(before)
+
+    def test_duplicated_id_keeps_the_good_row_clean(self, clean_feed, rules, now):
+        """``id_column`` names offending rows; it is not a uniqueness promise.
+
+        Two rows share ``P001``: one has no price, the other is fully valid.
+        Only the blank one may be held - the split used to match quarantined
+        *ids* back against the frame, which dragged the valid ``P001`` into
+        quarantine too and dropped it from ``clean``.
+        """
+        feed = pd.concat(
+            [clean_feed, clean_feed.iloc[[1]].assign(price=None)], ignore_index=True
+        )
+        report, clean, held = gate(feed, rules, now=now)
+        assert report.quarantined_ids == ["P001"]
+        assert len(held) == 1
+        assert held["price"].isna().all()
+        assert len(clean) == len(clean_feed)
+        assert (clean["product_id"] == "P001").sum() == 1
+        assert clean.loc[clean["product_id"] == "P001", "price"].notna().all()
+
+    def test_duplicated_index_without_id_column_keeps_the_good_row_clean(
+        self, clean_feed, rules, now
+    ):
+        """Same defect via the index fallback: a non-unique index label."""
+        rules_no_id = rules.model_copy(update={"id_column": None})
+        feed = clean_feed.copy()
+        feed.index = [0, 0] + list(range(2, len(feed)))
+        feed.iloc[1, feed.columns.get_loc("price")] = None
+        _, clean, held = gate(feed, rules_no_id, now=now)
+        assert len(held) == 1
+        assert len(clean) == len(feed) - 1
+        assert held["price"].isna().all()
 
 
 class TestReportRendering:
