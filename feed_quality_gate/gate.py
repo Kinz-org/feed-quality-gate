@@ -21,6 +21,7 @@ from .checks import (
     check_freshness,
     check_per_source_completeness,
     quarantine_ids_for,
+    quarantine_mask,
 )
 from .models import CheckResult, FeedReport
 from .rules import Rules
@@ -85,10 +86,8 @@ def gate(
     if not report.quarantined_ids or df.empty:
         return report, df.copy(), df.iloc[0:0].copy()
 
-    id_col = rules.id_column
-    if id_col and id_col in df.columns:
-        bad_mask = df[id_col].isin(report.quarantined_ids)
-    else:
-        bad_mask = df.index.isin(report.quarantined_ids)
-
+    # Split on the row mask itself, never by matching quarantined ids back
+    # against the frame: an id (or index label) shared by a good row and a
+    # bad one would drag the good row into quarantine with it.
+    bad_mask = quarantine_mask(df, rules.completeness).to_numpy()
     return report, df[~bad_mask].copy(), df[bad_mask].copy()

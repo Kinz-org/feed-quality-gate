@@ -323,10 +323,20 @@ def quarantine_ids_for(
     """
     if not len(df):
         return []
+    return _row_ids(df[quarantine_mask(df, rule)], id_column)
 
+
+def quarantine_mask(df: pd.DataFrame, rule: CompletenessRule) -> pd.Series:
+    """Boolean mask, aligned to ``df``, of the rows ``quarantine_ids_for`` names.
+
+    The split in ``gate()`` uses this mask rather than matching the returned
+    ids back against the frame: ``id_column`` names offending rows, it is not
+    a uniqueness guarantee, and a valid row that merely shares an id with a
+    bad one must stay in the clean partition. Positional, so it is also immune
+    to a non-unique index.
+    """
     mask = pd.Series(False, index=df.index)
     for column, column_rule in rule.columns.items():
         if column_rule.quarantine and column in df.columns:
             mask = mask | _is_blank(df[column])
-
-    return _row_ids(df[mask], id_column)
+    return mask
