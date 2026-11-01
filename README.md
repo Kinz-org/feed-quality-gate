@@ -127,6 +127,10 @@ partition is produced even when the overall gate fails.
 | `1` | A `fail`-severity check failed. |
 | `2` | The rules file is missing or invalid - a config error, not a data verdict. |
 
+One known gap: a misspelt key in the rules file is currently ignored, not rejected,
+so the default for that setting applies and the exit code is not `2`. It is
+tracked in [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
+
 `warn` deliberately does not change the exit code. A gate that breaks the build
 over a cosmetic gap gets switched off, and a gate that is switched off catches
 nothing.
@@ -152,6 +156,10 @@ JSON/console/Markdown reports, and the `fqg` CLI.
 - zero-yield source detection
 - absolute value-range bounds
 - alerting integration and historical quality tracking
+
+Open correctness bugs in what already ships (for example, one future-dated
+timestamp lets a stale feed pass `freshness`) are tracked with reproductions in
+[`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
 
 There is **no** live HTTP probing, **no** database writes, **no** migrations,
 and **no** transformation of any kind. Normalisation and matching belong to the
