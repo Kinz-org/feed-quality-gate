@@ -20,10 +20,16 @@ from .models import Severity
 
 
 class FreshnessRule(BaseModel):
-    """Fail when the newest row in the feed is older than ``max_age_days``."""
+    """Fail when the newest row in the feed is older than ``max_age_days``.
+
+    Rows dated more than ``future_tolerance_hours`` after the evaluation time
+    are not trusted as "newest": one clock-skewed or mis-parsed value would
+    otherwise make a stale feed look fresh. They are counted and reported.
+    """
 
     enabled: bool = True
     max_age_days: float = Field(default=7.0, gt=0)
+    future_tolerance_hours: float = Field(default=1.0, ge=0)
     severity: Severity = Severity.FAIL
 
 

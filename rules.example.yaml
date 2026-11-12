@@ -24,6 +24,10 @@ freshness:
   # above your real scrape cadence: a daily scraper wants 2, not 1, so a single
   # missed run warns rather than pages.
   max_age_days: 7
+  # Rows dated more than this many hours after "now" are treated as bad
+  # timestamps: counted and reported, but never allowed to count as the
+  # newest row (one 2099-01-01 value would otherwise hide a stale feed).
+  future_tolerance_hours: 1
   severity: fail
 
 completeness:

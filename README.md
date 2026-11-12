@@ -157,8 +157,7 @@ JSON/console/Markdown reports, and the `fqg` CLI.
 - absolute value-range bounds
 - alerting integration and historical quality tracking
 
-Open correctness bugs in what already ships (for example, one future-dated
-timestamp lets a stale feed pass `freshness`) are tracked with reproductions in
+Open correctness bugs in what already ships are tracked with reproductions in
 [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
 
 There is **no** live HTTP probing, **no** database writes, **no** migrations,

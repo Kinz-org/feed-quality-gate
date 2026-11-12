@@ -58,6 +58,79 @@ class TestFreshness:
         assert not r.passed
         assert "empty" in r.message
 
+    def test_one_future_timestamp_does_not_hide_a_stale_feed(self, clean_feed, now):
+        """A single clock-skewed or mis-parsed row must not become 'newest'.
+
+        Taking the max over every timestamp let one ``2099-01-01`` row make a
+        feed whose real rows are all weeks old read as "-26000d old" and pass.
+        """
+        rule = FreshnessRule(max_age_days=7)
+        df = clean_feed.copy()
+        df["scraped_at"] = now - timedelta(days=33)
+        df.loc[df.index[0], "scraped_at"] = pd.Timestamp("2099-01-01", tz="UTC")
+
+        r = check_freshness(df, rule, "scraped_at", now=now)
+
+        assert not r.passed
+        assert round(r.details["age_days"]) == 33
+        assert r.details["future_rows"] == 1
+        assert "in the future" in r.message
+
+    def test_future_rows_are_reported_but_a_fresh_feed_still_passes(
+        self, clean_feed, now
+    ):
+        rule = FreshnessRule(max_age_days=7)
+        df = clean_feed.copy()
+        df["scraped_at"] = now - timedelta(hours=2)
+        df.loc[df.index[0], "scraped_at"] = now + timedelta(days=400)
+
+        r = check_freshness(df, rule, "scraped_at", now=now)
+
+        assert r.passed
+        assert r.details["future_rows"] == 1
+        assert 0 < r.details["age_days"] < 1
+        assert "in the future" in r.message
+
+    def test_small_clock_skew_is_tolerated(self, clean_feed, now):
+        """A row a few minutes ahead of ``now`` is skew, not a bad value."""
+        rule = FreshnessRule(max_age_days=7)
+        df = clean_feed.copy()
+        df["scraped_at"] = now + timedelta(minutes=5)
+
+        r = check_freshness(df, rule, "scraped_at", now=now)
+
+        assert r.passed
+        assert r.details["future_rows"] == 0
+        assert "in the future" not in r.message
+
+    def test_every_timestamp_in_the_future_fails(self, clean_feed, now):
+        rule = FreshnessRule(max_age_days=7)
+        df = clean_feed.copy()
+        df["scraped_at"] = pd.Timestamp("2099-01-01", tz="UTC")
+
+        r = check_freshness(df, rule, "scraped_at", now=now)
+
+        assert not r.passed
+        assert r.details["future_rows"] == len(df)
+        assert "in the future" in r.message
+
+    def test_future_tolerance_is_configurable(self, clean_feed, now):
+        df = clean_feed.copy()
+        df["scraped_at"] = now - timedelta(days=33)
+        df.loc[df.index[0], "scraped_at"] = now + timedelta(hours=3)
+
+        strict = check_freshness(
+            df, FreshnessRule(max_age_days=7, future_tolerance_hours=1), "scraped_at", now=now
+        )
+        lenient = check_freshness(
+            df, FreshnessRule(max_age_days=7, future_tolerance_hours=6), "scraped_at", now=now
+        )
+
+        assert not strict.passed
+        assert strict.details["future_rows"] == 1
+        assert lenient.passed
+        assert lenient.details["future_rows"] == 0
+
     def test_naive_now_is_treated_as_utc_not_a_crash(self, clean_feed, rules, now):
         """Regression: a tz-naive ``now`` raised a bare pandas TypeError."""
         naive = now.astimezone(UTC).replace(tzinfo=None)

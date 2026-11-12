@@ -133,7 +133,38 @@ def check_freshness(
             ),
         )
 
-    newest = ts.max()
+    # A row dated after `now` (beyond a small clock-skew allowance) cannot be
+    # the feed's real newest row. Taking the max over it let one mis-parsed or
+    # skewed value (`2099-01-01`, a day/month swap) make a weeks-stale feed
+    # read as "-26000d old" and pass - the silent-stale case this check exists
+    # to catch. Such rows are left out of the age and reported instead.
+    cutoff = pd.Timestamp(now) + pd.Timedelta(hours=rule.future_tolerance_hours)
+    future = ts > cutoff
+    future_rows = int(future.sum())
+    future_note = (
+        f"; {future_rows} row(s) dated in the future were ignored"
+        if future_rows
+        else ""
+    )
+    plausible = ts[~future].dropna()
+
+    if plausible.empty:
+        return CheckResult(
+            name="freshness",
+            passed=False,
+            severity=rule.severity,
+            message=(
+                f"every parseable timestamp in {timestamp_column!r} is in the "
+                f"future ({future_rows} row(s) after {cutoff.isoformat()}) - "
+                "cannot tell whether this feed is stale"
+            ),
+            details={
+                "max_age_days": rule.max_age_days,
+                "future_rows": future_rows,
+            },
+        )
+
+    newest = plausible.max()
     age_days = (pd.Timestamp(now) - newest).total_seconds() / 86400
     passed = age_days <= rule.max_age_days
 
@@ -144,11 +175,13 @@ def check_freshness(
         message=(
             f"newest row is {age_days:.1f}d old "
             f"(limit {rule.max_age_days:g}d, newest {newest.isoformat()})"
+            f"{future_note}"
         ),
         details={
             "age_days": round(age_days, 3),
             "max_age_days": rule.max_age_days,
             "newest": newest.isoformat(),
+            "future_rows": future_rows,
         },
     )
 

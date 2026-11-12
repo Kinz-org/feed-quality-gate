@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from typer.testing import CliRunner
@@ -66,9 +67,14 @@ def _write_rules(tmp_path, body):
     return p
 
 
+# The CLI evaluates against the real clock, so date these rows an hour ago.
+# They used to say 2099-01-01, which only read as fresh because freshness took
+# the max over future-dated rows; it now ignores those.
+_RECENT = (datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 FRESH_ROWS = [
-    {"product_id": "P1", "price": 10.0, "scraped_at": "2099-01-01T00:00:00Z"},
-    {"product_id": "P2", "price": 12.0, "scraped_at": "2099-01-01T00:00:00Z"},
+    {"product_id": "P1", "price": 10.0, "scraped_at": _RECENT},
+    {"product_id": "P2", "price": 12.0, "scraped_at": _RECENT},
 ]
 
 RULES_BODY = """
@@ -118,7 +124,7 @@ class TestCli:
 
     def test_failing_feed_exits_nonzero(self, tmp_path):
         rows = FRESH_ROWS + [
-            {"product_id": "P3", "price": None, "scraped_at": "2099-01-01T00:00:00Z"}
+            {"product_id": "P3", "price": None, "scraped_at": _RECENT}
         ]
         feed = _write_feed(tmp_path, rows)
         rules = _write_rules(tmp_path, RULES_BODY)
@@ -128,7 +134,7 @@ class TestCli:
 
     def test_writes_report_clean_and_quarantine_files(self, tmp_path):
         rows = FRESH_ROWS + [
-            {"product_id": "P3", "price": None, "scraped_at": "2099-01-01T00:00:00Z"}
+            {"product_id": "P3", "price": None, "scraped_at": _RECENT}
         ]
         feed = _write_feed(tmp_path, rows)
         rules = _write_rules(tmp_path, RULES_BODY)
@@ -155,7 +161,7 @@ class TestCli:
 
     def test_writes_html_report(self, tmp_path):
         rows = FRESH_ROWS + [
-            {"product_id": "P3", "price": None, "scraped_at": "2099-01-01T00:00:00Z"}
+            {"product_id": "P3", "price": None, "scraped_at": _RECENT}
         ]
         feed = _write_feed(tmp_path, rows)
         rules = _write_rules(tmp_path, RULES_BODY)

@@ -93,8 +93,13 @@ the same PR that fixes it.
   keep the good one in `clean`, e.g. by splitting on index positions matched
   to quarantined index values rather than quarantined id values.
 
-- [ ] **`check_freshness` passes a stale feed when any one timestamp is in
-  the future.** It takes `ts.max()` and computes `age_days = now - newest`
+- [x] **`check_freshness` passes a stale feed when any one timestamp is in
+  the future.** (done 2026-11-11) Rows dated more than
+  `freshness.future_tolerance_hours` (default 1h, for clock skew) after `now`
+  are now left out of the age, counted in `details["future_rows"]` and named
+  in the message; a feed whose every timestamp is in the future fails.
+  Regression tests in `tests/test_checks.py::TestFreshness` (5, all failing
+  against the pre-fix code). Original finding: it takes `ts.max()` and computes `age_days = now - newest`
   with no lower bound (`feed_quality_gate/checks.py::check_freshness`), so a
   single mis-parsed or clock-skewed row (e.g. `2099-01-01`, or a day/month
   swap landing next year) makes the newest row "-26419.0d old" and the check
