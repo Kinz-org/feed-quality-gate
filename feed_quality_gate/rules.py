@@ -14,12 +14,23 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .models import Severity
 
 
-class FreshnessRule(BaseModel):
+class _StrictModel(BaseModel):
+    """Base for every rules block: an unknown key is an error, not a no-op.
+
+    Without this a misspelt key (``freshnes:``, ``quarantine_rows:``) was
+    silently dropped and its default applied, so the gate ran with different
+    tolerances than the file said and still exited 0.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FreshnessRule(_StrictModel):
     """Fail when the newest row in the feed is older than ``max_age_days``.
 
     Rows dated more than ``future_tolerance_hours`` after the evaluation time
@@ -33,7 +44,7 @@ class FreshnessRule(BaseModel):
     severity: Severity = Severity.FAIL
 
 
-class ColumnRule(BaseModel):
+class ColumnRule(_StrictModel):
     """Per-column tolerance for missing values.
 
     ``max_null_ratio`` is a fraction of rows, so 0.02 means "at most 2% of rows
@@ -45,14 +56,14 @@ class ColumnRule(BaseModel):
     quarantine: bool = True
 
 
-class CompletenessRule(BaseModel):
+class CompletenessRule(_StrictModel):
     """Which columns must be populated, and how tolerant to be about each."""
 
     enabled: bool = True
     columns: dict[str, ColumnRule] = Field(default_factory=dict)
 
 
-class PerSourceCompletenessRule(BaseModel):
+class PerSourceCompletenessRule(_StrictModel):
     """Per-source tolerance for missing values in one column.
 
     ``completeness`` above applies a tolerance to the whole feed at once, which
@@ -76,7 +87,7 @@ class PerSourceCompletenessRule(BaseModel):
     min_source_rows: int = Field(default=1, ge=1)
 
 
-class Rules(BaseModel):
+class Rules(_StrictModel):
     """A complete rule set for one feed."""
 
     feed_id: str = "unnamed-feed"
@@ -101,6 +112,12 @@ class RulesError(ValueError):
     """
 
 
+def _describe(error: Any) -> str:
+    if error["type"] == "extra_forbidden":
+        return "unknown key (misspelt, or not a setting this block supports)"
+    return str(error["msg"])
+
+
 def load_rules(path: str | Path) -> Rules:
     """Load and validate a rules YAML file."""
     p = Path(path)
@@ -119,7 +136,7 @@ def load_rules(path: str | Path) -> Rules:
         return Rules.from_mapping(raw)
     except ValidationError as exc:
         problems = "; ".join(
-            f"{'.'.join(str(x) for x in e['loc']) or '<root>'}: {e['msg']}"
+            f"{'.'.join(str(x) for x in e['loc']) or '<root>'}: {_describe(e)}"
             for e in exc.errors()
         )
         raise RulesError(f"invalid rules in {p} - {problems}") from exc

@@ -110,7 +110,13 @@ the same PR that fixes it.
   timestamps beyond `now` plus a small skew allowance, or fail with a
   message naming them. Verify: that fixture should fail freshness.
 
-- [ ] **Unknown keys in a rules file are silently ignored.** None of the
+- [x] **Unknown keys in a rules file are silently ignored.** (done 2026-11-16)
+  Every rules model now inherits `rules.py::_StrictModel`
+  (`extra="forbid"`), and `load_rules` reports the key's dotted path as
+  "unknown key". Regression tests
+  `tests/test_rules_and_cli.py::TestRuleLoading::test_unknown_keys_are_rejected_by_name`
+  (4 cases) and `test_cli_exits_2_on_a_misspelt_key` all fail against the
+  pre-fix code. Original finding: none of the
   pydantic models in `feed_quality_gate/rules.py` set
   `model_config = ConfigDict(extra="forbid")`, so a typo is dropped and the
   default applies: `freshnes: {max_age_days: 1}` leaves the 7-day default
@@ -120,3 +126,26 @@ the same PR that fixes it.
   gate that quietly runs with different tolerances than the file says.
   Verify: `load_rules` on a file with a misspelt key raises `RulesError`
   naming it; `rules.example.yaml` still loads.
+
+- [ ] **A feed with zero rows passes every check except freshness.**
+  `checks.py::check_column_completeness` computes `ratio = count / total if
+  total else 0.0`, so an empty feed is "0/0 rows (0.0%) missing" and passes;
+  `check_per_source_completeness` returns `passed=True` on `df.empty`. Only
+  `check_freshness` fails an empty feed. Reproduced 2026-11-16: a header-only
+  CSV with `freshness.enabled: false` and a `price` completeness rule prints
+  `score: 100/100`, `gate: PASSED`, exit 0. An empty extract is the most
+  common way a scraper or export dies, and a gate configured without a
+  timestamp waves it through. Verify: that fixture should exit 1 (a
+  `fail`-severity result naming the empty feed), with the existing
+  per-check tests unchanged.
+
+- [ ] **A missing or unreadable input file exits 1, the "data failed" code.**
+  `cli.py::check` calls `_read_feed(input)` with no error handling, and the
+  `--input` option does not set `exists=True`. Reproduced 2026-11-16:
+  `fqg check -i nope.csv -r rules.yaml` prints a `FileNotFoundError`
+  traceback and exits 1, which the README's exit-code table defines as "a
+  `fail`-severity check failed". A pipeline cannot tell a bad feed from a
+  wrong path. Rules-file problems already exit 2 with a one-line message.
+  Verify: a CLI test with a non-existent `-i` path expects exit 2 and a
+  message naming the path, not a traceback; the same for an unsupported
+  extension (currently `typer.BadParameter`, check its exit code too).

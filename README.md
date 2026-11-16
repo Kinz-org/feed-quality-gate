@@ -127,9 +127,9 @@ partition is produced even when the overall gate fails.
 | `1` | A `fail`-severity check failed. |
 | `2` | The rules file is missing or invalid - a config error, not a data verdict. |
 
-One known gap: a misspelt key in the rules file is currently ignored, not rejected,
-so the default for that setting applies and the exit code is not `2`. It is
-tracked in [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
+An unknown or misspelt key anywhere in the rules file (`freshnes:`,
+`quarantine_rows:`) is a config error: exit `2`, with the key's full path in the
+message, rather than a silently applied default.
 
 `warn` deliberately does not change the exit code. A gate that breaks the build
 over a cosmetic gap gets switched off, and a gate that is switched off catches
