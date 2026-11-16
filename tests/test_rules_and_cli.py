@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -44,6 +45,37 @@ class TestRuleLoading:
         p.write_text("- a\n- b\n")
         with pytest.raises(RulesError, match="mapping"):
             load_rules(p)
+
+    @pytest.mark.parametrize(
+        ("body", "key"),
+        [
+            # top level: the whole freshness block would be dropped
+            ("freshnes:\n  max_age_days: 1\n", "freshnes"),
+            # inside a block
+            ("freshness:\n  max_age_day: 1\n", "freshness.max_age_day"),
+            # inside a per-column rule: quarantine would silently stay on
+            (
+                "completeness:\n  columns:\n    price:\n      quarantine_rows: false\n",
+                "completeness.columns.price.quarantine_rows",
+            ),
+            ("per_source_completeness:\n  source_col: src\n", "per_source_completeness.source_col"),
+        ],
+    )
+    def test_unknown_keys_are_rejected_by_name(self, tmp_path, body, key):
+        """A typo must be a config error (exit 2), not a silently applied default."""
+        p = tmp_path / "typo.yaml"
+        p.write_text(body)
+        with pytest.raises(RulesError, match=rf"{re.escape(key)}: unknown key"):
+            load_rules(p)
+
+    def test_cli_exits_2_on_a_misspelt_key(self, tmp_path):
+        feed = _write_feed(tmp_path, FRESH_ROWS)
+        rules = _write_rules(
+            tmp_path, "timestamp_column: scraped_at\nfreshnes:\n  max_age_days: 1\n"
+        )
+        result = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert result.exit_code == 2, result.output
+        assert "freshnes" in result.output
 
     def test_defaults_apply_to_an_empty_file(self, tmp_path):
         p = tmp_path / "empty.yaml"
