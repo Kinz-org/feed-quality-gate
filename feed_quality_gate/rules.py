@@ -87,6 +87,32 @@ class PerSourceCompletenessRule(_StrictModel):
     min_source_rows: int = Field(default=1, ge=1)
 
 
+class StuckValueClusterRule(_StrictModel):
+    """Flag one value repeated across too many rows of ``column``.
+
+    A scraper that fails to parse a price often falls back to the same value
+    every time - a default, a placeholder, the last price it saw - so dozens of
+    unrelated products end up sharing exactly one price. Every such row is
+    populated, so ``completeness`` passes it; this rule looks at the *spread*
+    of values instead and fails when the largest single-value cluster covers
+    more than ``max_share`` of the non-blank rows.
+
+    Disabled by default for the same reason as ``per_source_completeness``: it
+    names a column that does not exist until a rules file sets it.
+    """
+
+    enabled: bool = False
+    column: str = ""
+    #: The largest share of non-blank rows any one value may cover.
+    max_share: float = Field(default=0.2, gt=0.0, le=1.0)
+    #: A value shared by fewer rows than this is never flagged, so a small
+    #: feed (or a legitimately popular price point) is not a "cluster".
+    min_cluster_rows: int = Field(default=5, ge=2)
+    #: Warn by default: a common price point can be real. Raise it to `fail`
+    #: once you know your feed's normal spread.
+    severity: Severity = Severity.WARN
+
+
 class Rules(_StrictModel):
     """A complete rule set for one feed."""
 
@@ -97,6 +123,9 @@ class Rules(_StrictModel):
     completeness: CompletenessRule = Field(default_factory=CompletenessRule)
     per_source_completeness: PerSourceCompletenessRule = Field(
         default_factory=PerSourceCompletenessRule
+    )
+    stuck_value_cluster: StuckValueClusterRule = Field(
+        default_factory=StuckValueClusterRule
     )
 
     @classmethod

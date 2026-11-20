@@ -128,3 +128,15 @@ def holey_feed(clean_feed: pd.DataFrame) -> pd.DataFrame:
     df.loc[1, "price"] = ""
     df.loc[2, "price"] = "   "
     return df
+
+
+@pytest.fixture
+def stuck_price_feed(clean_feed: pd.DataFrame) -> pd.DataFrame:
+    """Fresh and fully populated, but 20 unrelated products share one price.
+
+    The scraper-fallback symptom: every row has a price, so completeness and
+    freshness both pass, yet 20/50 (40%) rows carry exactly 9.99.
+    """
+    df = clean_feed.copy()
+    df.loc[:19, "price"] = 9.99
+    return df

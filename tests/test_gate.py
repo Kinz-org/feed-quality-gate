@@ -121,6 +121,38 @@ class TestPerSourceCompletenessInEvaluate:
         assert not report.gate_passed
 
 
+class TestStuckValueClusterInEvaluate:
+    def test_off_by_default(self, stuck_price_feed, rules, now):
+        report = evaluate(stuck_price_feed, rules, now=now)
+        assert "stuck_value_cluster" not in [r.name for r in report.results]
+        assert report.gate_passed
+
+    def test_catches_a_stuck_price_every_other_check_passes(
+        self, stuck_price_feed, rules, now
+    ):
+        enabled = rules.model_copy(
+            update={
+                "stuck_value_cluster": rules.stuck_value_cluster.model_copy(
+                    update={"enabled": True, "column": "price", "severity": Severity.FAIL}
+                )
+            }
+        )
+        report = evaluate(stuck_price_feed, enabled, now=now)
+        failure_names = [r.name for r in report.failures]
+
+        assert failure_names == ["stuck_value_cluster"]
+        assert not report.gate_passed
+        # feed-level only: no row is held back for sharing a value
+        assert report.quarantined_ids == []
+
+    def test_loads_from_a_rules_mapping(self):
+        rules = Rules.from_mapping(
+            {"stuck_value_cluster": {"enabled": True, "column": "price", "max_share": 0.3}}
+        )
+        assert rules.stuck_value_cluster.max_share == 0.3
+        assert rules.stuck_value_cluster.severity is Severity.WARN
+
+
 class TestGateSplit:
     def test_split_separates_held_rows(self, holey_feed, rules, now):
         report, clean, held = gate(holey_feed, rules, now=now)

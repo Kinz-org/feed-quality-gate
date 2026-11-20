@@ -20,6 +20,7 @@ from .checks import (
     check_completeness,
     check_freshness,
     check_per_source_completeness,
+    check_stuck_value_cluster,
     quarantine_ids_for,
     quarantine_mask,
 )
@@ -52,6 +53,11 @@ def evaluate(
             check_per_source_completeness(
                 df, rules.per_source_completeness, rules.id_column
             )
+        )
+
+    if rules.stuck_value_cluster.enabled:
+        results.append(
+            check_stuck_value_cluster(df, rules.stuck_value_cluster, rules.id_column)
         )
 
     quarantined = (

@@ -146,12 +146,12 @@ YAML file, never editing this package.
 **Ships now:** `freshness` (feed-level staleness), `completeness` (per-column
 missingness, treating `null`, `""` and whitespace alike), `per_source_completeness`
 (the same tolerance applied per source, so one collapsed source cannot hide
-behind a healthy global average), scoring, quarantine partitioning,
+behind a healthy global average), `stuck_value_cluster` (one value - typically a
+scraper's fallback price - repeated across too many unrelated rows), scoring, quarantine partitioning,
 JSON/console/Markdown reports, and the `fqg` CLI.
 
 **Not built yet** - the gaps below are ranked, not hidden:
 
-- stuck-value cluster detection (N rows sharing one suspicious price)
 - non-product row detection
 - zero-yield source detection
 - absolute value-range bounds

@@ -18,7 +18,13 @@ from typing import Any
 import pandas as pd
 
 from .models import CheckResult
-from .rules import ColumnRule, CompletenessRule, FreshnessRule, PerSourceCompletenessRule
+from .rules import (
+    ColumnRule,
+    CompletenessRule,
+    FreshnessRule,
+    PerSourceCompletenessRule,
+    StuckValueClusterRule,
+)
 
 #: How many offending ids to carry in a CheckResult before truncating.
 SAMPLE_LIMIT = 10
@@ -338,6 +344,106 @@ def check_per_source_completeness(
             "source_column": rule.source_column,
             "max_null_ratio": rule.max_null_ratio,
             "offending_sources": offending,
+        },
+    )
+
+
+def check_stuck_value_cluster(
+    df: pd.DataFrame,
+    rule: StuckValueClusterRule,
+    id_column: str | None = None,
+) -> CheckResult:
+    """Fail when one value of ``rule.column`` is shared by too many rows.
+
+    Catches the scraper-fallback symptom no completeness check can see: every
+    row is populated, but twenty unrelated products all carry exactly the same
+    price. A value is flagged when at least ``min_cluster_rows`` non-blank rows
+    share it *and* they make up more than ``max_share`` of the non-blank rows.
+
+    Blank values are ignored here - they are ``completeness``'s job, and
+    counting "" as a cluster would report the same gap twice. Text values are
+    compared after stripping whitespace, so ``"9.99"`` and ``" 9.99 "`` are one
+    value. Feed-level only: nothing is quarantined, because there is no way to
+    tell which of the clustered rows (if any) carries the real value.
+    """
+    name = "stuck_value_cluster"
+
+    if not rule.column or rule.column not in df.columns:
+        return CheckResult(
+            name=name,
+            passed=False,
+            severity=rule.severity,
+            total=len(df),
+            message=(
+                f"column {rule.column!r} is required by stuck_value_cluster "
+                "but absent from the feed"
+            ),
+            details={"missing_column": rule.column},
+        )
+
+    series = df[rule.column]
+    present = ~_is_blank(series)
+    values = series[present]
+    if pd.api.types.is_object_dtype(values) or pd.api.types.is_string_dtype(values):
+        values = values.map(lambda v: v.strip() if isinstance(v, str) else v)
+    total = len(values)
+
+    counts = values.value_counts(dropna=True)
+    threshold = rule.max_share * total
+    flagged = counts[(counts >= rule.min_cluster_rows) & (counts > threshold)]
+
+    if flagged.empty:
+        top = (
+            f"; most common value covers {int(counts.iloc[0])}/{total} rows"
+            if total
+            else ""
+        )
+        return CheckResult(
+            name=name,
+            passed=True,
+            severity=rule.severity,
+            total=total,
+            message=(
+                f"no value of {rule.column!r} is shared by more than "
+                f"{rule.max_share:.1%} of rows{top}"
+            ),
+            details={
+                "column": rule.column,
+                "max_share": rule.max_share,
+                "min_cluster_rows": rule.min_cluster_rows,
+                "clusters": {},
+            },
+        )
+
+    clusters = {
+        str(value): {"count": int(n), "share": round(int(n) / total, 6)}
+        for value, n in flagged.items()
+    }
+    in_cluster = pd.Series(False, index=df.index)
+    in_cluster[values.index[values.isin(flagged.index)]] = True
+    offending = _row_ids(df[in_cluster.to_numpy()], id_column)
+    count = int(in_cluster.sum())
+    detail = ", ".join(
+        f"{value!r} ({v['count']}/{total}, {v['share']:.1%})"
+        for value, v in clusters.items()
+    )
+
+    return CheckResult(
+        name=name,
+        passed=False,
+        severity=rule.severity,
+        count=count,
+        total=total,
+        message=(
+            f"{len(clusters)} value(s) of {rule.column!r} shared by more than "
+            f"{rule.max_share:.1%} of rows: {detail}"
+        ),
+        offending=offending[:SAMPLE_LIMIT],
+        details={
+            "column": rule.column,
+            "max_share": rule.max_share,
+            "min_cluster_rows": rule.min_cluster_rows,
+            "clusters": clusters,
         },
     )
 
