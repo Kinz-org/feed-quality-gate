@@ -65,3 +65,16 @@ per_source_completeness:
   max_null_ratio: 0.10
   severity: fail
   min_source_rows: 3
+
+# Off by default: point `column` at the field a broken scraper tends to fill
+# with a fallback (usually price). Every row is populated, so completeness
+# passes, but dozens of unrelated products end up with exactly one value. This
+# fails when one value covers more than `max_share` of the non-blank rows, and
+# at least `min_cluster_rows` of them. Blanks are ignored (completeness owns
+# them). Warn by default, since a popular price point can be genuine.
+stuck_value_cluster:
+  enabled: false
+  column: price
+  max_share: 0.2
+  min_cluster_rows: 5
+  severity: warn

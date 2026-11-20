@@ -11,10 +11,16 @@ from feed_quality_gate.checks import (
     check_column_completeness,
     check_freshness,
     check_per_source_completeness,
+    check_stuck_value_cluster,
     quarantine_ids_for,
 )
 from feed_quality_gate.models import Severity
-from feed_quality_gate.rules import ColumnRule, FreshnessRule, PerSourceCompletenessRule
+from feed_quality_gate.rules import (
+    ColumnRule,
+    FreshnessRule,
+    PerSourceCompletenessRule,
+    StuckValueClusterRule,
+)
 
 
 class TestFreshness:
@@ -363,3 +369,71 @@ class TestPerSourceCompleteness:
         r = check_per_source_completeness(df, rule, "product_id")
         assert not r.passed
         assert "<missing>" in r.details["offending_sources"]
+
+
+class TestStuckValueCluster:
+    @staticmethod
+    def _rule(**kw) -> StuckValueClusterRule:
+        return StuckValueClusterRule(enabled=True, column="price", **kw)
+
+    def test_distinct_prices_pass(self, clean_feed):
+        r = check_stuck_value_cluster(clean_feed, self._rule(), "product_id")
+        assert r.passed
+        assert r.details["clusters"] == {}
+
+    def test_one_price_repeated_across_many_products_fails(self, stuck_price_feed):
+        r = check_stuck_value_cluster(stuck_price_feed, self._rule(), "product_id")
+        assert not r.passed
+        assert r.count == 20
+        assert r.total == 50
+        assert r.details["clusters"] == {"9.99": {"count": 20, "share": 0.4}}
+        assert "9.99" in r.message
+        assert r.offending[:2] == ["P000", "P001"]
+        assert len(r.offending) == 10  # SAMPLE_LIMIT
+
+    def test_severity_defaults_to_warn(self, stuck_price_feed):
+        r = check_stuck_value_cluster(stuck_price_feed, self._rule(), "product_id")
+        assert r.severity is Severity.WARN
+
+    def test_share_at_or_under_the_limit_passes(self, stuck_price_feed):
+        # 20/50 = 40% exactly: "more than max_share" is strict.
+        assert check_stuck_value_cluster(
+            stuck_price_feed, self._rule(max_share=0.4), "product_id"
+        ).passed
+
+    def test_cluster_below_min_rows_is_not_flagged(self):
+        # 3 of 4 rows share a price - 75%, but three rows are not a cluster.
+        df = pd.DataFrame({"product_id": list("ABCD"), "price": [5.0, 5.0, 5.0, 7.0]})
+        assert check_stuck_value_cluster(df, self._rule(), "product_id").passed
+        assert not check_stuck_value_cluster(
+            df, self._rule(min_cluster_rows=3), "product_id"
+        ).passed
+
+    def test_blanks_are_not_a_cluster(self, clean_feed):
+        """Missing values are completeness's job, not a stuck value."""
+        df = clean_feed.copy()
+        df["price"] = df["price"].astype(object)
+        df.loc[:29, "price"] = ""
+        df.loc[30:39, "price"] = None
+        r = check_stuck_value_cluster(df, self._rule(), "product_id")
+        assert r.passed
+        assert r.total == 10
+
+    def test_text_values_are_compared_stripped(self):
+        df = pd.DataFrame(
+            {
+                "product_id": [f"P{i}" for i in range(10)],
+                "price": ["9.99", " 9.99", "9.99 ", "9.99", " 9.99 "]
+                + ["1", "2", "3", "4", "5"],
+            }
+        )
+        r = check_stuck_value_cluster(df, self._rule(), "product_id")
+        assert not r.passed
+        assert r.details["clusters"] == {"9.99": {"count": 5, "share": 0.5}}
+
+    def test_missing_column_fails_readably(self, clean_feed):
+        r = check_stuck_value_cluster(
+            clean_feed, StuckValueClusterRule(enabled=True, column="nope"), "product_id"
+        )
+        assert not r.passed
+        assert "'nope'" in r.message

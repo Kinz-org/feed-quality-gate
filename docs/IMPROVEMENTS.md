@@ -45,7 +45,15 @@ the same PR that fixes it.
   passing a naive `now` and assert a clean result or a readable error, not a
   bare pandas `TypeError`.
 
-- [ ] **`stuck_value_cluster` detection is still not built.** Verified by
+- [x] **`stuck_value_cluster` detection is still not built.** (done
+  2026-11-20) New `checks.py::check_stuck_value_cluster` and
+  `rules.py::StuckValueClusterRule` (off by default; `column`, `max_share`,
+  `min_cluster_rows`, `severity` default `warn`), wired into `evaluate()`
+  and documented in `rules.example.yaml`. Blanks are ignored and text is
+  compared stripped; nothing is quarantined (feed-level signal). Tests:
+  `tests/test_checks.py::TestStuckValueCluster` and
+  `tests/test_gate.py::TestStuckValueClusterInEvaluate` - the 20-of-50
+  rows at 9.99 fixture fails only the new check. Original finding: verified by
   reading `feed_quality_gate/checks.py` end to end and grepping the whole
   tree for "stuck"/"cluster" - the only occurrence is the one line in
   `README.md`'s "Not built yet" list. This is a real, not stale, backlog
