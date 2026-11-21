@@ -82,6 +82,22 @@ a file than pipe JSON through `jq`.
 `fqg explain -r rules.example.yaml` prints the rule set as the gate actually
 resolved it, defaults included.
 
+### Start a rules file from a sample
+
+```bash
+fqg init -i feed.csv -o rules.yaml
+```
+
+`fqg init` profiles a sample of the feed and drafts a commented rules file: the
+id column (fully populated and unique), the timestamp column (values parse as
+dates; numeric columns are never picked), and one completeness entry per other
+column. A column that was never missing gets `fail` with 2% allowance and
+quarantine on; a column that already has gaps gets `warn` with room above what
+was observed. Freshness keeps the 7-day default, because one sample cannot tell
+your update cadence. Review the draft before committing it. Without `-o` it
+prints to stdout; it will not overwrite an existing file unless you pass
+`--force`.
+
 ## Use it as a library
 
 ```python
