@@ -14,6 +14,7 @@ import pandas as pd
 import typer
 
 from . import report as report_mod
+from .draft import draft_rules, render_yaml
 from .gate import gate
 from .rules import RulesError, load_rules
 
@@ -86,6 +87,37 @@ def explain(
         raise typer.Exit(2) from exc
 
     typer.echo(ruleset.model_dump_json(indent=2))
+
+
+@app.command()
+def init(
+    input: Path = typer.Option(..., "--input", "-i", help="Sample feed (csv/parquet/json)."),
+    output: Path | None = typer.Option(
+        None, "--output", "-o", help="Write the rules here instead of printing them."
+    ),
+    feed_id: str | None = typer.Option(
+        None, "--feed-id", help="feed_id to write. Defaults to the input file's name."
+    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing --output file."),
+) -> None:
+    """Draft a rules file from a sample of the feed, for a human to review."""
+    if output and output.exists() and not force:
+        typer.secho(
+            f"{output} already exists - pass --force to overwrite it",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(2)
+
+    draft = draft_rules(_read_feed(input), feed_id=feed_id or input.stem)
+    text = render_yaml(draft, source=input.name)
+
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text, encoding="utf-8")
+        typer.echo(f"wrote {output} - review it, then run: fqg check -i {input} -r {output}")
+    else:
+        typer.echo(text, nl=False)
 
 
 def main() -> None:  # pragma: no cover - thin console-script wrapper
