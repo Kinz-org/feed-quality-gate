@@ -147,6 +147,11 @@ An unknown or misspelt key anywhere in the rules file (`freshnes:`,
 `quarantine_rows:`) is a config error: exit `2`, with the key's full path in the
 message, rather than a silently applied default.
 
+Freshness is measured from the newest *plausible* timestamp: rows dated more than
+`future_tolerance_hours` (default 1) after the evaluation time are ignored, and
+reported in the check message, so a bad future-dated row cannot make a stale feed
+look fresh. If every row is future-dated the check fails.
+
 `warn` deliberately does not change the exit code. A gate that breaks the build
 over a cosmetic gap gets switched off, and a gate that is switched off catches
 nothing.
@@ -163,8 +168,9 @@ YAML file, never editing this package.
 missingness, treating `null`, `""` and whitespace alike), `per_source_completeness`
 (the same tolerance applied per source, so one collapsed source cannot hide
 behind a healthy global average), `stuck_value_cluster` (one value - typically a
-scraper's fallback price - repeated across too many unrelated rows), scoring, quarantine partitioning,
-JSON/console/Markdown reports, and the `fqg` CLI.
+scraper's fallback price - repeated across too many unrelated rows; off by default,
+see `rules.example.yaml`), scoring, quarantine partitioning, JSON/console/Markdown
+reports, and the `fqg` CLI.
 
 **Not built yet** - the gaps below are ranked, not hidden:
 
