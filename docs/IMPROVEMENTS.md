@@ -64,8 +64,8 @@ the same PR that fixes it.
   fixture with, say, 20 distinct products all priced at exactly the same
   value should fail the new check while passing every existing one.
 
-- [ ] **`_read_feed`'s `.parquet`/`.pq` and `.json`/`.jsonl` branches have
-  zero test coverage.** `feed_quality_gate/cli.py::_read_feed` has four
+- [x] **`_read_feed`'s `.parquet`/`.pq` and `.json`/`.jsonl` branches have
+  zero test coverage.** (done 2026-11-25) `feed_quality_gate/cli.py::_read_feed` has four
   format branches; `tests/test_rules_and_cli.py` only ever writes and reads
   back a `.csv` feed (`_write_feed` always writes `pd.DataFrame.to_csv`). A
   regression in the JSON or Parquet branch - wrong `lines=` value, wrong
@@ -77,6 +77,10 @@ the same PR that fixes it.
   `.parquet`.
   *Partly done 2026-10-23:* `.json`, `.jsonl` and the unsupported-extension
   error are now covered (`TestReadFeedFormats`); `.parquet` is still open.
+  *Done 2026-11-25:* `pyarrow` added to the `[dev]` extra (CI installs
+  `.[dev]`), and `TestReadFeedFormats` now round-trips `.parquet` and `.pq`
+  feeds plus a failing Parquet feed (null price must reach the checks). No
+  skip marker: the tests fail without pyarrow instead of hiding.
 
 - [x] **`gate()`'s row split quarantines every row sharing a duplicated
   `id_column` value, not just the offending one.** (done 2026-10-26) Fixed

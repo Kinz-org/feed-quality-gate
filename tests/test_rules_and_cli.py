@@ -137,6 +137,31 @@ class TestReadFeedFormats:
         assert res.exit_code == 0, res.output
         assert "PASSED" in res.output
 
+    @pytest.mark.parametrize("suffix", [".parquet", ".pq"])
+    def test_parquet_feeds_are_read(self, tmp_path, suffix):
+        # pyarrow comes in through the [dev] extra, so this runs in CI.
+        import pandas as pd
+
+        feed = tmp_path / f"feed{suffix}"
+        pd.DataFrame(FRESH_ROWS).to_parquet(feed, index=False)
+        rules = _write_rules(tmp_path, RULES_BODY)
+        res = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert res.exit_code == 0, res.output
+        assert "PASSED" in res.output
+
+    def test_parquet_feed_values_reach_the_checks(self, tmp_path):
+        # A null price must survive the Parquet round-trip and fail the gate,
+        # so a reader that drops or coerces values cannot pass unnoticed.
+        import pandas as pd
+
+        rows = FRESH_ROWS + [{"product_id": "P3", "price": None, "scraped_at": _RECENT}]
+        feed = tmp_path / "feed.parquet"
+        pd.DataFrame(rows).to_parquet(feed, index=False)
+        rules = _write_rules(tmp_path, RULES_BODY)
+        res = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert res.exit_code == 1, res.output
+        assert "FAILED" in res.output
+
     def test_unsupported_extension_is_rejected(self, tmp_path):
         feed = tmp_path / "feed.xlsx"
         feed.write_text("irrelevant", encoding="utf-8")
