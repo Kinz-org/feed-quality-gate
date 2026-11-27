@@ -139,7 +139,15 @@ the same PR that fixes it.
   Verify: `load_rules` on a file with a misspelt key raises `RulesError`
   naming it; `rules.example.yaml` still loads.
 
-- [ ] **A feed with zero rows passes every check except freshness.**
+- [x] **A feed with zero rows passes every check except freshness.**
+  (done 2026-11-27) New `checks.py::check_row_count` and
+  `rules.py::RowCountRule` (`row_count:` block, on by default, `min_rows: 1`,
+  severity `fail`), run first in `evaluate()` and documented in
+  `rules.example.yaml`. Regression tests
+  `tests/test_gate.py::TestEmptyFeed::test_empty_feed_fails_the_gate_without_freshness`
+  and `tests/test_rules_and_cli.py::TestCli::test_header_only_feed_fails_with_freshness_off`
+  both fail against the pre-fix code; unit tests in
+  `tests/test_checks.py::TestRowCount`. Original finding:
   `checks.py::check_column_completeness` computes `ratio = count / total if
   total else 0.0`, so an empty feed is "0/0 rows (0.0%) missing" and passes;
   `check_per_source_completeness` returns `passed=True` on `df.empty`. Only
@@ -161,3 +169,25 @@ the same PR that fixes it.
   Verify: a CLI test with a non-existent `-i` path expects exit 2 and a
   message naming the path, not a traceback; the same for an unsupported
   extension (currently `typer.BadParameter`, check its exit code too).
+
+- [ ] **`fqg init` drafts a full rules file from a header-only sample and
+  exits 0.** `draft.py::_column_rule` computes the blank ratio as `0.0` when
+  `len(df)` is 0, so every column is written as "missing on 0.0% of sample
+  rows" with a strict `max_null_ratio: 0.02` and `quarantine: true`, as if
+  the sample had proved them always populated. Reproduced 2026-11-27: a CSV
+  holding only `product_id,price,scraped_at` gives a complete draft and exit
+  0. A rules file guessed from zero rows reads exactly like one guessed from
+  a thousand. Verify: `fqg init` on a header-only CSV exits 2 with a message
+  saying the sample has no rows, and writes no file.
+
+- [ ] **`--clean` / `--quarantine` CSVs rewrite id and code columns.**
+  `cli.py::_read_feed` calls `pd.read_csv(path)` with default type
+  inference, so a column of zero-padded ids or EANs is read as integers and
+  written back without the zeros. Reproduced 2026-11-27: `product_id`
+  `007`/`010` and `ean` `0612345678901` come out of `--clean` as `7`/`10`
+  and `612345678901`. The README says this gate "validates and never
+  transforms"; a consumer joining the clean file back on `product_id` would
+  silently miss every padded id. Verify: a CLI test round-trips a CSV with
+  padded ids and EANs through `--clean` and `--quarantine` unchanged (for
+  example by reading CSV with `dtype=str` or `keep_default_na`-aware string
+  dtype, then checking the numeric checks still see numbers where needed).

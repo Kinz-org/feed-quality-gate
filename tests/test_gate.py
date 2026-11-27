@@ -14,6 +14,34 @@ from feed_quality_gate.report import exit_code, to_console, to_html, to_json, to
 from feed_quality_gate.rules import Rules
 
 
+class TestEmptyFeed:
+    """Regression: with freshness off, an empty feed passed every check
+    (0/0 rows missing) and scored 100/100."""
+
+    def _no_freshness(self, rules):
+        return Rules.from_mapping(
+            {**rules.model_dump(mode="json"), "freshness": {"enabled": False}}
+        )
+
+    def test_empty_feed_fails_the_gate_without_freshness(self, clean_feed, rules, now):
+        report = evaluate(clean_feed.iloc[0:0], self._no_freshness(rules), now=now)
+        assert not report.gate_passed
+        assert [r.name for r in report.failures] == ["row_count"]
+
+    def test_non_empty_feed_is_unaffected(self, clean_feed, rules, now):
+        report = evaluate(clean_feed, self._no_freshness(rules), now=now)
+        assert report.gate_passed
+        assert report.score == 100
+
+    def test_row_count_can_be_disabled(self, clean_feed, rules, now):
+        data = {
+            **self._no_freshness(rules).model_dump(mode="json"),
+            "row_count": {"enabled": False},
+        }
+        report = evaluate(clean_feed.iloc[0:0], Rules.from_mapping(data), now=now)
+        assert "row_count" not in [r.name for r in report.results]
+
+
 class TestEvaluate:
     def test_naive_now_is_accepted_and_reported_as_utc(self, clean_feed, rules, now):
         """Regression: evaluate(now=<naive>) crashed in the freshness check, and

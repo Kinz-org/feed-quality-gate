@@ -23,6 +23,7 @@ from .rules import (
     CompletenessRule,
     FreshnessRule,
     PerSourceCompletenessRule,
+    RowCountRule,
     StuckValueClusterRule,
 )
 
@@ -75,6 +76,27 @@ def as_utc(now: datetime | None) -> datetime:
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         return now.replace(tzinfo=UTC)
     return now.astimezone(UTC)
+
+
+def check_row_count(df: pd.DataFrame, rule: RowCountRule) -> CheckResult:
+    """Fail a feed with fewer than ``rule.min_rows`` rows.
+
+    The other checks pass an empty frame vacuously, so without this an empty
+    feed scores 100/100 whenever freshness is off.
+    """
+    total = len(df)
+    passed = total >= rule.min_rows
+    if total == 0:
+        message = "feed is empty - no rows to check"
+    else:
+        message = f"{total} row(s); at least {rule.min_rows} required"
+    return CheckResult(
+        name="row_count",
+        passed=passed,
+        severity=rule.severity,
+        message=message,
+        details={"row_count": total, "min_rows": rule.min_rows},
+    )
 
 
 def check_freshness(
