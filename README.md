@@ -57,6 +57,7 @@ score:  30/100
 gate:   FAILED
 held:   2 row(s) quarantined
 
+  PASS row_count: 8 row(s); at least 1 required
   FAIL [fail] freshness: newest row is 34.1d old (limit 7d, newest 2026-07-30T17:07:00+00:00)
   FAIL [fail] completeness:price: 2/8 rows (25.0%) missing 'price' (limit 2.0%)
          e.g. P003, P005
@@ -164,7 +165,8 @@ YAML file, never editing this package.
 
 ## What v1 does and does not do
 
-**Ships now:** `freshness` (feed-level staleness), `completeness` (per-column
+**Ships now:** `row_count` (an empty feed fails, even with freshness off),
+`freshness` (feed-level staleness), `completeness` (per-column
 missingness, treating `null`, `""` and whitespace alike), `per_source_completeness`
 (the same tolerance applied per source, so one collapsed source cannot hide
 behind a healthy global average), `stuck_value_cluster` (one value - typically a

@@ -11,6 +11,7 @@ from feed_quality_gate.checks import (
     check_column_completeness,
     check_freshness,
     check_per_source_completeness,
+    check_row_count,
     check_stuck_value_cluster,
     quarantine_ids_for,
 )
@@ -19,8 +20,34 @@ from feed_quality_gate.rules import (
     ColumnRule,
     FreshnessRule,
     PerSourceCompletenessRule,
+    RowCountRule,
     StuckValueClusterRule,
 )
+
+
+class TestRowCount:
+    def test_empty_feed_fails(self, clean_feed):
+        r = check_row_count(clean_feed.iloc[0:0], RowCountRule())
+        assert not r.passed
+        assert r.severity is Severity.FAIL
+        assert "empty" in r.message
+        assert r.details == {"row_count": 0, "min_rows": 1}
+
+    def test_non_empty_feed_passes_by_default(self, clean_feed):
+        r = check_row_count(clean_feed, RowCountRule())
+        assert r.passed
+        assert r.details["row_count"] == len(clean_feed)
+
+    def test_min_rows_threshold(self, clean_feed):
+        three = clean_feed.head(3)
+        assert check_row_count(three, RowCountRule(min_rows=3)).passed
+        r = check_row_count(three, RowCountRule(min_rows=4))
+        assert not r.passed
+        assert "3 row(s); at least 4 required" in r.message
+
+    def test_severity_comes_from_the_rule(self, clean_feed):
+        rule = RowCountRule(severity=Severity.WARN)
+        assert check_row_count(clean_feed.iloc[0:0], rule).severity is Severity.WARN
 
 
 class TestFreshness:

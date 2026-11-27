@@ -20,6 +20,7 @@ from .checks import (
     check_completeness,
     check_freshness,
     check_per_source_completeness,
+    check_row_count,
     check_stuck_value_cluster,
     quarantine_ids_for,
     quarantine_mask,
@@ -39,6 +40,9 @@ def evaluate(
     """
     now = as_utc(now)
     results: list[CheckResult] = []
+
+    if rules.row_count.enabled:
+        results.append(check_row_count(df, rules.row_count))
 
     if rules.freshness.enabled:
         results.append(

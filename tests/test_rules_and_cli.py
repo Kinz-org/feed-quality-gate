@@ -189,6 +189,20 @@ class TestCli:
         assert res.exit_code == 1
         assert "FAILED" in res.output
 
+    def test_header_only_feed_fails_with_freshness_off(self, tmp_path):
+        """Regression: an empty extract passed the gate (exit 0, 100/100)
+        whenever freshness was disabled."""
+        feed = tmp_path / "feed.csv"
+        feed.write_text("product_id,price,scraped_at\n")
+        body = RULES_BODY.replace(
+            "freshness:\n  max_age_days: 3650000", "freshness:\n  enabled: false"
+        )
+        assert "enabled: false" in body
+        rules = _write_rules(tmp_path, body)
+        res = runner.invoke(app, ["check", "-i", str(feed), "-r", str(rules)])
+        assert res.exit_code == 1, res.output
+        assert "row_count" in res.output
+
     def test_writes_report_clean_and_quarantine_files(self, tmp_path):
         rows = FRESH_ROWS + [
             {"product_id": "P3", "price": None, "scraped_at": _RECENT}

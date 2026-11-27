@@ -30,6 +30,21 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RowCountRule(_StrictModel):
+    """The feed must hold at least ``min_rows`` rows.
+
+    An empty extract is the most common way a scraper or export dies, and
+    every per-row check passes an empty frame vacuously (0 of 0 rows
+    missing). Only ``freshness`` used to catch it, so a rules file with
+    freshness off waved an empty feed through. On by default with
+    ``min_rows: 1``: an empty feed is never trustworthy.
+    """
+
+    enabled: bool = True
+    min_rows: int = Field(default=1, ge=1)
+    severity: Severity = Severity.FAIL
+
+
 class FreshnessRule(_StrictModel):
     """Fail when the newest row in the feed is older than ``max_age_days``.
 
@@ -119,6 +134,7 @@ class Rules(_StrictModel):
     feed_id: str = "unnamed-feed"
     id_column: str | None = None
     timestamp_column: str | None = None
+    row_count: RowCountRule = Field(default_factory=RowCountRule)
     freshness: FreshnessRule = Field(default_factory=FreshnessRule)
     completeness: CompletenessRule = Field(default_factory=CompletenessRule)
     per_source_completeness: PerSourceCompletenessRule = Field(

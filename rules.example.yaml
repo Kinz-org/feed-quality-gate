@@ -18,6 +18,14 @@ id_column: product_id
 # rather than silently passing.
 timestamp_column: scraped_at
 
+row_count:
+  enabled: true
+  # An empty extract is the most common way a scraper or export dies, and the
+  # per-row checks pass an empty feed vacuously (0 of 0 rows missing). Raise
+  # this to your feed's normal floor to also catch a half-empty run.
+  min_rows: 1
+  severity: fail
+
 freshness:
   enabled: true
   # Fail once the newest row in the feed is older than this. Set it slightly
